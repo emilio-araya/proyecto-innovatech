@@ -1,0 +1,90 @@
+name: Build and Deploy to Amazon EKS
+
+on:
+  push:
+    branches: ["deploy"]
+
+env:
+  AWS_REGION: us-east-1
+  EKS_CLUSTER_NAME: ${{ secrets.EKS_CLUSTER_NAME }}
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v4
+
+      - name: Configurar credenciales de AWS
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login a Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build y Push — Frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./front_despacho
+          file: ./front_despacho/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/front-despacho:latest
+            ${{ steps.login-ecr.outputs.registry }}/front-despacho:${{ github.run_number }}
+
+      - name: Build y Push — Backend Ventas
+        uses: docker/build-push-action@v5
+        with:
+          context: ./back-Ventas_SpringBoot/Springboot-API-REST
+          file: ./back-Ventas_SpringBoot/Springboot-API-REST/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/back-ventas:latest
+            ${{ steps.login-ecr.outputs.registry }}/back-ventas:${{ github.run_number }}
+
+      - name: Build y Push — Backend Despachos
+        uses: docker/build-push-action@v5
+        with:
+          context: ./back-Despachos_SpringBoot/Springboot-API-REST-DESPACHO
+          file: ./back-Despachos_SpringBoot/Springboot-API-REST-DESPACHO/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/back-despachos:latest
+            ${{ steps.login-ecr.outputs.registry }}/back-despachos:${{ github.run_number }}
+
+      - name: Conectar kubectl a EKS
+        run: |
+          aws eks update-kubeconfig \
+            --region ${{ env.AWS_REGION }} \
+            --name ${{ env.EKS_CLUSTER_NAME }}
+
+      - name: Aplicar manifiestos de Kubernetes
+        run: kubectl apply -f k8s/
+
+      - name: Rolling Update — actualizar imágenes
+        run: |
+          REG=${{ steps.login-ecr.outputs.registry }}
+          RUN=${{ github.run_number }}
+          kubectl set image deployment/frontend-despacho \
+            frontend-despacho=${REG}/front-despacho:${RUN}
+          kubectl set image deployment/backend-ventas \
+            backend-ventas=${REG}/back-ventas:${RUN}
+          kubectl set image deployment/backend-despachos \
+            backend-despachos=${REG}/back-despachos:${RUN}
+
+      - name: Esperar que el Rolling Update termine
+        run: |
+          kubectl rollout status deployment/frontend-despacho --timeout=180s
+          kubectl rollout status deployment/backend-ventas --timeout=180s
+          kubectl rollout status deployment/backend-despachos --timeout=180s
+
+      - name: Verificar estado final
+        run: |
+          kubectl get pods
+          kubectl get services
