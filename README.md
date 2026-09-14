@@ -1,187 +1,108 @@
-# 🚀 Innovatech Chile | Plataforma Cloud-Native en AWS (DevOps Enterprise)
+# 🚀 Innovatech Chile | Plataforma Cloud-Native en AWS
 
----
+Proyecto académico de Duoc UC orientado a una arquitectura de microservicios con Spring Boot, React, Docker, Kubernetes y automatización CI/CD sobre AWS.
 
-## 🧭 Resumen Ejecutivo
+## 🧭 Arquitectura
 
-Innovatech Chile es una plataforma cloud-native basada en microservicios, desplegada sobre AWS y diseñada bajo prácticas modernas de DevOps, automatización CI/CD y arquitectura distribuida.
+Flujo de despliegue:
 
-El sistema simula un entorno productivo real con enfoque en:
-- Alta disponibilidad (Multi-AZ)
-- Escalabilidad horizontal
-- Seguridad bajo modelo Zero Trust
-- Automatización completa del ciclo de vida del software
-- Observabilidad centralizada
+GitHub → GitHub Actions → Docker → Amazon ECR → Amazon EKS
 
----
+El repositorio mantiene tres componentes principales:
 
-## 🏗️ Arquitectura General
+- **Frontend:** React + Vite + Nginx
+- **Backend Ventas:** Spring Boot, puerto 8080
+- **Backend Despachos:** Spring Boot, puerto 8081
 
-Flujo de despliegue end-to-end:
+Los backends se exponen internamente mediante Services `ClusterIP` y el frontend mediante un `LoadBalancer`.
 
-GitHub → GitHub Actions → Docker (multi-stage build) → Amazon ECR → Amazon EKS → Microservicios
+## ☁️ AWS y Kubernetes
 
----
+La configuración está preparada para Amazon EKS y Amazon ECR en `us-east-1`. El nombre del clúster se obtiene mediante el secret `EKS_CLUSTER_NAME`.
 
-## ☁️ Infraestructura en AWS
+La infraestructura Kubernetes incluida en `k8s/` también contiene un **MySQL 8 de prueba** con almacenamiento persistente de 5 GiB. Esta base de datos forma parte del entorno académico/test y no debe interpretarse como una configuración de producción con RDS.
 
-### Componentes principales
+## ⚙️ CI/CD
 
-- Amazon VPC (10.0.0.0/16)
-- Amazon EKS (Kubernetes v1.35)
-- Amazon ECR (registro de contenedores)
-- Elastic Load Balancer (exposición pública)
-- AWS CloudWatch (logs y monitoreo)
-- AWS Systems Manager (acceso seguro sin SSH)
-- NAT Gateway / Internet Gateway
+El workflow `.github/workflows/ci-cd.yml` se ejecuta automáticamente cuando se realiza un push a la rama **`deploy`**.
 
-### Diseño de red
+El pipeline:
 
-- Arquitectura Multi-AZ
-- Subredes públicas y privadas
-- Backend aislado en subred privada
-- Exposición controlada mediante Load Balancer
-- Comunicación interna restringida dentro del clúster
+1. Descarga el código.
+2. Configura credenciales AWS mediante GitHub Secrets.
+3. Inicia sesión en Amazon ECR.
+4. Construye y publica las imágenes de frontend, ventas y despachos.
+5. Configura `kubectl` para EKS.
+6. Aplica los manifiestos de `k8s/`.
+7. Actualiza las imágenes con el número de ejecución de GitHub Actions.
+8. Espera la finalización de los Rolling Updates.
+9. Verifica Pods y Services.
 
----
+## 🐳 Contenedores
 
-## 🔐 Seguridad (Zero Trust)
+Los tres componentes utilizan Docker multi-stage builds:
 
-El sistema implementa un enfoque Zero Trust:
+- Frontend: Node 20 para compilación + Nginx Alpine para ejecución.
+- Ventas: Maven + Eclipse Temurin 17.
+- Despachos: Maven + Eclipse Temurin 17.
 
-- Eliminación de acceso SSH (puerto 22 cerrado)
-- Sin uso de llaves .pem
-- Acceso administrativo mediante AWS Systems Manager Session Manager
-- Autenticación con credenciales temporales (STS)
-- Servicios internos expuestos únicamente vía ClusterIP
-- Reducción de superficie de ataque
+Las imágenes se publican en Amazon ECR con etiquetas `latest` y el número de ejecución del workflow.
 
----
+## 📈 Escalabilidad
 
-## ☸️ Kubernetes (Amazon EKS)
+Los backends cuentan con Horizontal Pod Autoscaler (`autoscaling/v2`):
 
-- Cluster: innovatech-eks-cluster
-- Versión: Kubernetes v1.35
-- Tipo de nodos: T3 Large (Spot Instances)
-- Autoescalado habilitado
+- Mínimo: 2 réplicas
+- Máximo: 6 réplicas
+- Objetivo de CPU: 70%
 
-### Exposición de servicios
+## 🔐 Configuración y seguridad
 
-| Servicio         | Tipo          | Exposición |
-|----------------|--------------|------------|
-| Frontend        | LoadBalancer | Público    |
-| Backend Ventas  | ClusterIP    | Interno    |
-| Backend Logística | ClusterIP  | Interno    |
+Las credenciales reales de AWS deben almacenarse exclusivamente en **GitHub Actions Secrets**. La plantilla `.github/secrets-template.md` documenta los nombres esperados.
 
----
+`k8s/db-secret.yaml` contiene credenciales **de prueba** para el MySQL incluido en Kubernetes. No utilizar estos valores en producción.
 
-## 🐳 Estrategia de Contenedores
+El proyecto no requiere credenciales Docker Hub ni llaves SSH para su workflow actual: utiliza ECR/EKS y las credenciales AWS configuradas como Secrets.
 
-- Microservicios dockerizados
-- Uso de multi-stage builds para optimización
-- Imágenes livianas y seguras
-- Publicación en Amazon ECR
+## 📂 Estructura
 
-Versionado de imágenes:
-eks-${{ github.run_number }}
-
----
-
-## ⚙️ CI/CD (GitHub Actions)
-
-### Flujo de despliegue
-
-GitHub → Actions → Docker → ECR → EKS → Deploy
-
-### Etapas del pipeline
-
-- Checkout del código fuente
-- Autenticación con AWS (STS)
-- Build de imagen Docker
-- Push a Amazon ECR
-- Deploy en Amazon EKS
-- Rolling update sin downtime
-
-### Características
-
-- Despliegue automático en cada push a main
-- Versionado dinámico de imágenes
-- Entrega inmutable
-- Cero downtime en producción
-
----
-
-## 📈 Escalabilidad y Resiliencia
-
-- Horizontal Pod Autoscaler (HPA)
-- Escalado automático basado en CPU
-- Umbral de uso: 50%
-- Optimización de costos con instancias Spot
-
----
-
-## 📊 Observabilidad
-
-### Metrics Server
-- kubectl top pods -n tienda
-
-### CloudWatch
-- Logs del API Server
-- Auditoría del clúster
-- Eventos del sistema
-- Eventos de autenticación
-
----
-
-## 🧩 Microservicios
-
-| Servicio   | Tecnología   | Función |
-|------------|-------------|--------|
-| Frontend   | JavaScript  | Interfaz de usuario |
-| Ventas     | Spring Boot | Gestión de ventas |
-| Logística  | Spring Boot | Gestión de entregas |
-
----
-
-## 📂 Estructura del repositorio
-
+```text
 .
-├── .github/workflows
-├── back-Ventas_SpringBoot
-├── back-Despachos_SpringBoot
-├── front_despacho
+├── .github/
+│   ├── secrets-template.md
+│   └── workflows/
+├── k8s/
+│   ├── backend-despacho-deployment.yaml
+│   ├── backend-ventas-deployment.yaml
+│   ├── db-secret.yaml
+│   ├── frontend-despacho-deployment.yaml
+│   ├── hpa.yaml
+│   ├── mysql-deployment.yaml
+│   ├── mysql-pvc.yaml
+│   └── mysql-service.yaml
+├── back-Ventas_SpringBoot/
+├── back-Despachos_SpringBoot/
+├── front_despacho/
 └── README.md
+```
 
----
+## 🧪 Validación
 
-## 🚀 Validación del Sistema
+Comandos útiles dentro del clúster:
 
-kubectl get pods -n tienda
-kubectl get svc -n tienda
-kubectl get deployments -n tienda
-kubectl top pods -n tienda
-
----
-
-## 🎯 Resultados de Ingeniería
-
-- Infraestructura cloud en AWS operativa
-- Arquitectura de microservicios distribuida
-- Orquestación con Kubernetes (EKS)
-- CI/CD completamente automatizado
-- Seguridad bajo modelo Zero Trust
-- Escalabilidad horizontal automática
-- Observabilidad centralizada
-
----
+```bash
+kubectl get pods
+kubectl get services
+kubectl get deployments
+kubectl get hpa
+kubectl top pods
+```
 
 ## 👥 Equipo
 
 - Benjamin Serrano
 - Emilio Araya
 - Luis Villalobos
-
----
 
 ## 📄 Licencia
 
