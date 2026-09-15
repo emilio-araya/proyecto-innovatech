@@ -5,8 +5,6 @@ import com.citt.persistence.entity.Despacho;
 import com.citt.persistence.services.DespachoService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.validation.Valid;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
@@ -20,27 +18,29 @@ import java.util.List;
 @Tag(name = "Despacho", description = "Controlador para gestionar despachos")
 public class DespachoController {
 
-    @Autowired
-    private DespachoService despachoService;
+    private final DespachoService despachoService;
+
+    public DespachoController(DespachoService despachoService) {
+        this.despachoService = despachoService;
+    }
 
     @Operation(summary = "Crear un nuevo despacho")
     @PostMapping
-    public ResponseEntity<Despacho> crearDespacho(
-            @RequestBody Despacho despacho){
+    public ResponseEntity<Despacho> crearDespacho(@RequestBody Despacho despacho){
+        Despacho despachoGuardado = despachoService.saveDespacho(despacho);
         URI location = ServletUriComponentsBuilder
                 .fromCurrentRequest()
                 .path("/{idDespacho}")
-                .buildAndExpand(despacho.getIdDespacho())
+                .buildAndExpand(despachoGuardado.getIdDespacho())
                 .toUri();
-        despachoService.saveDespacho(despacho);
-        return ResponseEntity.created(location).body(despacho);
+        return ResponseEntity.created(location).body(despachoGuardado);
     }
 
     @Operation(summary = "Actualizar un despacho existente")
     @PutMapping("/{idDespacho}")
     public ResponseEntity<Despacho> actualizarDespacho(
             @PathVariable Long idDespacho,
-            @Valid @RequestBody Despacho despacho) throws DespachoNotFoundException {
+            @RequestBody Despacho despacho) throws DespachoNotFoundException {
         Despacho despachoActualizado = despachoService.updateDespacho(idDespacho, despacho);
         return ResponseEntity.ok(despachoActualizado);
     }
