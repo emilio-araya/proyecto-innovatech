@@ -3,17 +3,19 @@ package com.citt.persistence.services;
 import com.citt.exceptions.DespachoNotFoundException;
 import com.citt.persistence.entity.Despacho;
 import com.citt.persistence.repository.DespachoRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Optional;
 
 @Service
-public class DespachoServiceImpl implements DespachoService{
+public class DespachoServiceImpl implements DespachoService {
 
-    @Autowired
-    private DespachoRepository despachoRepository;
+    private final DespachoRepository despachoRepository;
+
+    public DespachoServiceImpl(DespachoRepository despachoRepository) {
+        this.despachoRepository = despachoRepository;
+    }
 
     @Override
     public List<Despacho> findAllDespachos() {
@@ -44,7 +46,7 @@ public class DespachoServiceImpl implements DespachoService{
         Optional<Despacho> despacho = despachoRepository.findById(idDespacho);
         if(!despacho.isPresent()){
             throw new DespachoNotFoundException("¡No es posible eliminar! No existe despacho con el ID:" + idDespacho);
-        }else {
+        } else {
             despachoRepository.deleteById(idDespacho);
         }
     }
