@@ -98,6 +98,18 @@ kubectl get hpa
 kubectl top pods
 ```
 
+## 🔮 Mejoras futuras
+
+Las siguientes mejoras quedan como trabajo futuro y no forman parte de la implementación académica aprobada:
+
+- **Parametrizar el registro de Amazon ECR:** actualmente los manifiestos Kubernetes utilizan directamente el registro ECR asociado al proyecto. En una evolución futura se podría parametrizar la cuenta, región y nombres de repositorio para facilitar la reutilización en otros entornos.
+- **Gestión externa de secretos:** reemplazar las credenciales de prueba de Kubernetes por un sistema de gestión de secretos como AWS Secrets Manager o External Secrets en un entorno productivo.
+- **Separación de entornos:** incorporar configuraciones independientes para desarrollo, staging y producción mediante overlays o una estrategia equivalente.
+- **Imágenes inmutables:** priorizar referencias por digest o una estrategia de versionado estricta en lugar de depender de la etiqueta `latest`.
+- **Hardening de producción:** incorporar controles adicionales de seguridad, observabilidad y políticas de recursos antes de utilizar la arquitectura fuera del contexto académico.
+
+Estas mejoras permitirían llevar el proyecto desde su escenario académico actual hacia una implementación más preparada para producción, sin alterar la arquitectura que fue utilizada y aprobada para el proyecto final.
+
 ## 👥 Equipo
 
 - Benjamin Serrano
