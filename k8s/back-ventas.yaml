@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: back-ventas
+  namespace: innovatech
+  labels:
+    app: back-ventas
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: back-ventas
+  template:
+    metadata:
+      labels:
+        app: back-ventas
+    spec:
+      containers:
+        - name: back-ventas
+          # Reemplazar por el registry real de ECR:
+          # <AWS_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/back-ventas:latest
+          image: CHANGE_ME.dkr.ecr.us-east-1.amazonaws.com/back-ventas:latest
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: backend-config
+            - secretRef:
+                name: mysql-credentials
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          readinessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 60
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: back-ventas
+  namespace: innovatech
+spec:
+  type: ClusterIP
+  selector:
+    app: back-ventas
+  ports:
+    - port: 8080
+      targetPort: 8080

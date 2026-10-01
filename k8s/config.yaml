@@ -1,0 +1,27 @@
+# Configuración compartida de los backends (MySQL en RDS).
+# Ajusta los valores a tu entorno antes de aplicar.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: innovatech
+data:
+  DB_ENDPOINT: "CHANGE_ME.xxxxxxxx.us-east-1.rds.amazonaws.com"
+  DB_PORT: "3306"
+  DB_NAME: "innovatech"
+---
+# Plantilla de referencia. NO subir credenciales reales al repo.
+# Crea el secreto real con:
+#   kubectl create secret generic mysql-credentials \
+#     --from-literal=DB_USERNAME=admin \
+#     --from-literal=DB_PASSWORD='tu-password' \
+#     --namespace innovatech
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mysql-credentials
+  namespace: innovatech
+type: Opaque
+stringData:
+  DB_USERNAME: "CHANGE_ME"
+  DB_PASSWORD: "CHANGE_ME"
