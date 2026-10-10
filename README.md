@@ -1,188 +1,70 @@
-# 🚀 Innovatech Chile | Plataforma Cloud-Native en AWS (DevOps Enterprise)
+# Innovatech Chile — Microservicios en Amazon EKS
 
----
+Proyecto semestral de la asignatura de DevOps (Duoc UC), desarrollado en equipo. Una tienda con dos APIs Spring Boot (ventas y despachos) y un frontend React, empaquetados con Docker, publicados en Amazon ECR y desplegados en Amazon EKS mediante GitHub Actions.
 
-## 🧭 Resumen Ejecutivo
+Repositorio original del equipo: [bencasolocaso/proyecto-semestral-devops](https://github.com/bencasolocaso/proyecto-semestral-devops). Esta es mi copia, donde mantengo y documento mi parte.
 
-Innovatech Chile es una plataforma cloud-native basada en microservicios, desplegada sobre AWS y diseñada bajo prácticas modernas de DevOps, automatización CI/CD y arquitectura distribuida.
+## Arquitectura
 
-El sistema simula un entorno productivo real con enfoque en:
-- Alta disponibilidad (Multi-AZ)
-- Escalabilidad horizontal
-- Seguridad bajo modelo Zero Trust
-- Automatización completa del ciclo de vida del software
-- Observabilidad centralizada
+```text
+GitHub Actions ──► Docker build (multi-stage) ──► Amazon ECR ──► kubectl apply ──► Amazon EKS
 
----
+EKS (namespace innovatech)
+├── front-despacho   Deployment ×2 · Service LoadBalancer (público)
+├── back-ventas      Deployment ×2 · Service ClusterIP (interno, :8080)
+└── back-despachos   Deployment ×2 · Service ClusterIP (interno, :8081)
+                          │
+                          ▼
+                     MySQL (Amazon RDS)
+```
 
-## 🏗️ Arquitectura General
+Solo el frontend se expone a Internet; las APIs son internas al clúster.
 
-Flujo de despliegue end-to-end:
+## Mi aporte
 
-GitHub → GitHub Actions → Docker (multi-stage build) → Amazon ECR → Amazon EKS → Microservicios
+- **Pipeline CI/CD** ([`.github/workflows/workflow.yml`](.github/workflows/workflow.yml)): pasé el despliegue a Amazon EKS y agregué la construcción y publicación en ECR de las tres imágenes, etiquetadas con `latest` y el SHA del commit.
+- **Kubernetes y Docker**: Dockerfiles multi-stage de las tres aplicaciones y manifiestos de [`k8s/`](k8s) (namespace, Deployments, Services, ConfigMap y plantilla de Secret).
+- **Backend**: en la rama [`deploy`](https://github.com/emilio-araya/proyecto-innovatech/tree/deploy) mejoré la validación y la persistencia de los controladores de Ventas y Despachos, pasé a inyección por constructor y externalicé la configuración de la base de datos.
+- **Documentación** del proyecto.
 
----
+La infraestructura del clúster con Terraform (VPC, EKS, IAM) la escribió Luis Villalobos y está en la rama [`infrastructure/terraform`](https://github.com/emilio-araya/proyecto-innovatech/tree/infrastructure/terraform).
 
-## ☁️ Infraestructura en AWS
+## Estructura
 
-### Componentes principales
-
-- Amazon VPC (10.0.0.0/16)
-- Amazon EKS (Kubernetes v1.35)
-- Amazon ECR (registro de contenedores)
-- Elastic Load Balancer (exposición pública)
-- AWS CloudWatch (logs y monitoreo)
-- AWS Systems Manager (acceso seguro sin SSH)
-- NAT Gateway / Internet Gateway
-
-### Diseño de red
-
-- Arquitectura Multi-AZ
-- Subredes públicas y privadas
-- Backend aislado en subred privada
-- Exposición controlada mediante Load Balancer
-- Comunicación interna restringida dentro del clúster
-
----
-
-## 🔐 Seguridad (Zero Trust)
-
-El sistema implementa un enfoque Zero Trust:
-
-- Eliminación de acceso SSH (puerto 22 cerrado)
-- Sin uso de llaves .pem
-- Acceso administrativo mediante AWS Systems Manager Session Manager
-- Autenticación con credenciales temporales (STS)
-- Servicios internos expuestos únicamente vía ClusterIP
-- Reducción de superficie de ataque
-
----
-
-## ☸️ Kubernetes (Amazon EKS)
-
-- Cluster: innovatech-eks-cluster
-- Versión: Kubernetes v1.35
-- Tipo de nodos: T3 Large (Spot Instances)
-- Autoescalado habilitado
-
-### Exposición de servicios
-
-| Servicio         | Tipo          | Exposición |
-|----------------|--------------|------------|
-| Frontend        | LoadBalancer | Público    |
-| Backend Ventas  | ClusterIP    | Interno    |
-| Backend Logística | ClusterIP  | Interno    |
-
----
-
-## 🐳 Estrategia de Contenedores
-
-- Microservicios dockerizados
-- Uso de multi-stage builds para optimización
-- Imágenes livianas y seguras
-- Publicación en Amazon ECR
-
-Versionado de imágenes:
-eks-${{ github.run_number }}
-
----
-
-## ⚙️ CI/CD (GitHub Actions)
-
-### Flujo de despliegue
-
-GitHub → Actions → Docker → ECR → EKS → Deploy
-
-### Etapas del pipeline
-
-- Checkout del código fuente
-- Autenticación con AWS (STS)
-- Build de imagen Docker
-- Push a Amazon ECR
-- Deploy en Amazon EKS
-- Rolling update sin downtime
-
-### Características
-
-- Despliegue automático en cada push a main
-- Versionado dinámico de imágenes
-- Entrega inmutable
-- Cero downtime en producción
-
----
-
-## 📈 Escalabilidad y Resiliencia
-
-- Horizontal Pod Autoscaler (HPA)
-- Escalado automático basado en CPU
-- Umbral de uso: 50%
-- Optimización de costos con instancias Spot
-
----
-
-## 📊 Observabilidad
-
-### Metrics Server
-- kubectl top pods -n tienda
-
-### CloudWatch
-- Logs del API Server
-- Auditoría del clúster
-- Eventos del sistema
-- Eventos de autenticación
-
----
-
-## 🧩 Microservicios
-
-| Servicio   | Tecnología   | Función |
-|------------|-------------|--------|
-| Frontend   | JavaScript  | Interfaz de usuario |
-| Ventas     | Spring Boot | Gestión de ventas |
-| Logística  | Spring Boot | Gestión de entregas |
-
----
-
-## 📂 Estructura del repositorio
-
+```text
 .
-├── .github/workflows
-├── back-Ventas_SpringBoot
-├── back-Despachos_SpringBoot
-├── front_despacho
-└── README.md
+├── .github/workflows/workflow.yml   Pipeline build → ECR → EKS
+├── back-Ventas_SpringBoot/          API de ventas (Spring Boot 3, Java 17)
+├── back-Despachos_SpringBoot/       API de despachos (Spring Boot 3, Java 17)
+├── front_despacho/                  Frontend (React 18 + Vite + Tailwind)
+└── k8s/                             Manifiestos de Kubernetes
+```
 
----
+## Cómo se ejecuta
 
-## 🚀 Validación del Sistema
+El pipeline se dispara con un push a la rama `deploy`. Requiere un clúster `innovatech-eks` en `us-east-1` y los secrets `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` y `AWS_SESSION_TOKEN`.
 
-kubectl get pods -n tienda
-kubectl get svc -n tienda
-kubectl get deployments -n tienda
-kubectl top pods -n tienda
+Para desplegar a mano, los pasos previos (registry de ECR, endpoint de RDS y secreto con las credenciales) están en [`k8s/README.md`](k8s/README.md):
 
----
+```bash
+aws eks update-kubeconfig --name innovatech-eks --region us-east-1
+kubectl apply -f k8s/
+kubectl get pods,svc -n innovatech
+```
 
-## 🎯 Resultados de Ingeniería
+Para correr una API en local se necesita una base MySQL y las variables `DB_ENDPOINT`, `DB_PORT`, `DB_NAME`, `DB_USERNAME` y `DB_PASSWORD`:
 
-- Infraestructura cloud en AWS operativa
-- Arquitectura de microservicios distribuida
-- Orquestación con Kubernetes (EKS)
-- CI/CD completamente automatizado
-- Seguridad bajo modelo Zero Trust
-- Escalabilidad horizontal automática
-- Observabilidad centralizada
+```bash
+cd back-Ventas_SpringBoot/Springboot-API-REST
+./mvnw spring-boot:run
+```
 
----
+## Limitaciones
 
-## 👥 Equipo
+- El clúster se creó en un laboratorio de AWS con credenciales temporales. Fuera de ese entorno el pipeline no puede autenticarse ni encontrar el clúster, y por eso fallan sus ejecuciones recientes.
+- El pipeline no ejecuta tests antes de construir las imágenes.
+- Los cambios de las ramas `deploy` e `infrastructure/terraform` aún no están integrados en `main`.
 
-- Benjamin Serrano
-- Emilio Araya
-- Luis Villalobos
+## Equipo
 
----
-
-## 📄 Licencia
-
-Proyecto académico desarrollado en Duoc UC con fines educativos.
+Benjamín Serrano · Emilio Araya · Luis Villalobos
