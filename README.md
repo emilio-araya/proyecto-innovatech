@@ -1,5 +1,7 @@
 # Innovatech Chile — Microservicios en Amazon EKS
 
+[![CI](https://github.com/emilio-araya/proyecto-innovatech/actions/workflows/ci.yml/badge.svg)](https://github.com/emilio-araya/proyecto-innovatech/actions/workflows/ci.yml)
+
 Proyecto semestral de la asignatura de DevOps (Duoc UC), desarrollado en equipo. Una tienda con dos APIs Spring Boot (ventas y despachos) y un frontend React, empaquetados con Docker, publicados en Amazon ECR y desplegados en Amazon EKS mediante GitHub Actions.
 
 Repositorio original del equipo: [bencasolocaso/proyecto-semestral-devops](https://github.com/bencasolocaso/proyecto-semestral-devops). Esta es mi copia, donde mantengo y documento mi parte.
@@ -42,7 +44,7 @@ La infraestructura del clúster con Terraform (VPC, EKS, IAM) la escribió Luis 
 
 ## Cómo se ejecuta
 
-El pipeline se dispara con un push a la rama `deploy`. Requiere un clúster `innovatech-eks` en `us-east-1` y los secrets `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` y `AWS_SESSION_TOKEN`.
+El workflow [`ci.yml`](.github/workflows/ci.yml) compila las dos APIs y corre sus tests contra MySQL en cada push. El pipeline de despliegue se dispara con un push a la rama `deploy` y solo construye las imágenes si esos tests pasan. Requiere un clúster `innovatech-eks` en `us-east-1` y los secrets `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` y `AWS_SESSION_TOKEN`.
 
 Para desplegar a mano, los pasos previos (registry de ECR, endpoint de RDS y secreto con las credenciales) están en [`k8s/README.md`](k8s/README.md):
 
@@ -62,8 +64,7 @@ cd back-Ventas_SpringBoot/Springboot-API-REST
 ## Limitaciones
 
 - El clúster se creó en un laboratorio de AWS con credenciales temporales. Fuera de ese entorno el pipeline no puede autenticarse ni encontrar el clúster, y por eso fallan sus ejecuciones recientes.
-- El pipeline no ejecuta tests antes de construir las imágenes.
-- Los cambios de las ramas `deploy` e `infrastructure/terraform` aún no están integrados en `main`.
+- Los cambios de las ramas `deploy` e `infrastructure/terraform` aún no están integrados en `main`. Hasta que se integren, la rama `deploy` usa su propia versión del pipeline, que no ejecuta los tests.
 
 ## Equipo
 
