@@ -4,18 +4,151 @@
 [![Java](https://img.shields.io/badge/Java-17-ED8B00?logo=openjdk&logoColor=white)](https://openjdk.org)
 [![Spring Boot](https://img.shields.io/badge/Spring_Boot-3.4-6DB33F?logo=springboot&logoColor=white)](https://spring.io/projects/spring-boot)
 [![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)](https://react.dev)
+[![Docker](https://img.shields.io/badge/Docker-multi--stage-2496ED?logo=docker&logoColor=white)](https://www.docker.com)
 [![Kubernetes](https://img.shields.io/badge/Kubernetes-EKS-326CE5?logo=kubernetes&logoColor=white)](https://aws.amazon.com/eks)
 [![Terraform](https://img.shields.io/badge/Terraform-1.x-7B42BC?logo=terraform&logoColor=white)](https://www.terraform.io)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Proyecto semestral de la asignatura de DevOps (Duoc UC), desarrollado en equipo. Una tienda con
-dos APIs Spring Boot (ventas y despachos) y un frontend React, empaquetados con Docker, publicados
-en Amazon ECR y desplegados en Amazon EKS.
+Tienda con dos APIs Spring Boot (ventas y despachos) y un frontend React. Las tres aplicaciones se
+empaquetan con Docker multi-stage, se publican en Amazon ECR y se despliegan en Amazon EKS, con la
+infraestructura definida en Terraform.
 
-El repositorio reúne el trabajo del equipo y las mejoras que mantengo: el pipeline de CI, los
-Dockerfiles, los manifiestos de Kubernetes, la integración de las ramas de desarrollo e
-infraestructura en `main` y la documentación. El repositorio original del equipo es
+Proyecto semestral de la asignatura de DevOps (Duoc UC), desarrollado en equipo. Este repositorio
+reúne el trabajo del equipo y las mejoras que mantengo: el pipeline de CI, los Dockerfiles, los
+manifiestos de Kubernetes, la integración de las ramas de desarrollo e infraestructura en `main` y
+la documentación. El repositorio original del equipo es
 [bencasolocaso/proyecto-semestral-devops](https://github.com/bencasolocaso/proyecto-semestral-devops).
+
+![Dashboard](docs/screenshot.png)
+
+> **Estado.** `main` compila y ejecuta los tests de las dos APIs en cada push (badge verde). El
+> despliegue a AWS estaba atado a un laboratorio de AWS Academy que ya expiró; el stack completo se
+> levanta localmente con Docker Compose.
+
+## Qué hace
+
+| Módulo | Puerto | Función |
+|---|---|---|
+| API de ventas | `8080` | CRUD de ventas: dirección, valor y fecha de compra |
+| API de despachos | `8081` | CRUD de despachos: compra asociada, patente del camión, intentos y estado |
+| Frontend | `80` | Dashboard con las vistas de ventas y despachos, servido por nginx |
+
+El frontend consume las APIs a través de rutas relativas `/api/*`; nginx quita el prefijo y reenvía
+cada llamada al servicio correspondiente. Así el mismo build funciona en local y en el clúster, sin
+URLs compiladas.
+
+## Levantarlo en un comando
+
+```bash
+docker compose up --build
+```
+
+| Servicio | URL |
+|---|---|
+| Frontend | <http://localhost> |
+| API de ventas | <http://localhost:8080> |
+| API de despachos | <http://localhost:8081> |
+| MySQL (host) | `localhost:3307` |
+
+Para comprobar que todo está arriba:
+
+```bash
+curl http://localhost/api/ventas/api/v1/ventas      # []
+curl http://localhost/api/despacho/api/v1/despachos # []
+```
+
+Detalles que importan:
+
+- La primera vez tarda unos minutos: compila las dos APIs con Maven y el frontend con Vite. Las
+  imágenes son multi-stage, así que el JDK y `node_modules` no viajan a la imagen final.
+- MySQL se publica en `3307` para no chocar con un MySQL local en `3306`. Dentro de la red del
+  compose los contenedores se hablan por `3306`.
+- `docker/mysql-init.sql` crea `ventas_db` y `despachos_db` con permisos para el usuario de
+  desarrollo.
+- El frontend espera a que las dos APIs estén *healthy*. nginx resuelve los nombres de los
+  servicios una sola vez al iniciar; sin esa espera, el primer request devuelve `502`.
+- Los servicios tienen alias de red (`backend-ventas-service` y `backend-despachos-service`) con
+  los mismos nombres que usa `nginx.conf`, para que el frontend resuelva igual que en Kubernetes.
+
+Bajar el stack y borrar el volumen de MySQL:
+
+```bash
+docker compose down -v
+```
+
+Las credenciales del compose (`root123`, `despacho_user` / `despacho_pass`) son de desarrollo y no
+se usan en el clúster. En Kubernetes el secreto se crea aparte, desde una plantilla.
+
+## API
+
+Las dos APIs exponen el mismo CRUD sobre su recurso:
+
+| Método | Ventas (`:8080`) | Despachos (`:8081`) |
+|---|---|---|
+| `GET` | `/api/v1/ventas` | `/api/v1/despachos` |
+| `GET` | `/api/v1/ventas/{id}` | `/api/v1/despachos/{id}` |
+| `POST` | `/api/v1/ventas` | `/api/v1/despachos` |
+| `PUT` | `/api/v1/ventas/{id}` | `/api/v1/despachos/{id}` |
+| `DELETE` | `/api/v1/ventas/{id}` | `/api/v1/despachos/{id}` |
+
+Crear una venta:
+
+```bash
+curl -X POST http://localhost:8080/api/v1/ventas \
+  -H "Content-Type: application/json" \
+  -d '{
+    "direccionCompra": "Av. Siempre Viva 742",
+    "valorCompra": 15990,
+    "fechaCompra": "2026-10-25",
+    "despachoGenerado": false
+  }'
+```
+
+Respuesta `201 Created`, con el `Location` del recurso:
+
+```json
+{
+  "idVenta": 1,
+  "direccionCompra": "Av. Siempre Viva 742",
+  "valorCompra": 15990,
+  "fechaCompra": "2026-10-25",
+  "despachoGenerado": false
+}
+```
+
+Documentación interactiva generada con OpenAPI:
+
+- Ventas: <http://localhost:8080/swagger-ui/index.html>
+- Despachos: <http://localhost:8081/swagger-ui/index.html>
+
+A través del frontend, la misma llamada es `http://localhost/api/ventas/api/v1/ventas`.
+
+## Tests
+
+La suite incluye un test unitario del servicio de ventas (JUnit 5 + Mockito) y el test de contexto
+de cada API, que levanta Spring contra MySQL. El CI corre una matriz por servicio con MySQL 8.4:
+
+```yaml
+./mvnw -B verify
+```
+
+Para correrlos en local contra el MySQL del compose:
+
+```bash
+docker compose up -d mysql-db
+
+cd back-Ventas_SpringBoot/Springboot-API-REST
+DB_ENDPOINT=localhost DB_PORT=3307 DB_NAME=ventas_db \
+DB_USERNAME=despacho_user DB_PASSWORD=despacho_pass \
+./mvnw verify
+
+cd ../../back-Despachos_SpringBoot/Springboot-API-REST-DESPACHO
+DB_ENDPOINT=localhost DB_PORT=3307 DB_NAME=despachos_db \
+DB_USERNAME=despacho_user DB_PASSWORD=despacho_pass \
+./mvnw verify
+```
+
+El frontend no tiene tests automatizados; la cobertura de CI se limita a las dos APIs.
 
 ## Arquitectura
 
@@ -35,15 +168,18 @@ flowchart TB
   end
 ```
 
-Solo el frontend se expone a Internet. Las dos APIs y la base de datos son `ClusterIP`: se alcanzan
-únicamente desde dentro del clúster. El `nginx` del frontend hace el fallback de SPA que necesita
-React Router y reparte las llamadas `/api/*` a cada servicio.
+En el clúster solo el frontend se expone a Internet. Las dos APIs y la base de datos son
+`ClusterIP`: se alcanzan únicamente desde dentro del clúster. El `nginx` del frontend hace el
+fallback de SPA y reparte las llamadas `/api/*` a cada servicio.
+
+En local, Docker Compose reproduce la misma topología: un único punto de entrada por el puerto 80,
+las APIs en la red interna y MySQL con un volumen persistente.
 
 ## Stack
 
 | Capa | Tecnología |
 |---|---|
-| Backend | Java 17 · Spring Boot 3.4 · Spring Data JPA · Maven |
+| Backend | Java 17 · Spring Boot 3.4 · Spring Data JPA · Bean Validation · Maven |
 | Frontend | React 18 · Vite 5 · Tailwind CSS 3 |
 | Base de datos | MySQL 8.0 en el clúster, con `PersistentVolumeClaim` |
 | Contenedores | Docker multi-stage · nginx |
@@ -68,37 +204,15 @@ React Router y reparte las llamadas `/api/*` a cada servicio.
 │   └── examples/                     Plantilla del secreto de base de datos
 ├── terraform/                        VPC, subredes, EKS, IAM y addons
 ├── scripts/                          Despliegue de la base y del stack
-└── docs/kubernetes.md                Orden de aplicación, secreto y diseño de red
-```
-
-## Stack completo con Docker Compose
-
-La forma más rápida de ver la aplicación: levanta MySQL, las dos APIs y el frontend.
-
-```bash
-docker compose up --build
-```
-
-| Servicio | URL |
-|---|---|
-| Frontend | http://localhost |
-| API de ventas | http://localhost:8080 |
-| API de despachos | http://localhost:8081 |
-
-El compose crea `ventas_db` y `despachos_db` y da de alta el usuario de desarrollo. Los servicios
-tienen alias de red con los mismos nombres que usa `nginx.conf` (`backend-ventas-service` y
-`backend-despachos-service`), así el frontend resuelve las APIs igual que en Kubernetes.
-
-Para bajar el stack y borrar el volumen de MySQL:
-
-```bash
-docker compose down -v
+└── docs/
+    ├── kubernetes.md                 Orden de aplicación, secreto y diseño de red
+    └── screenshot.png                Captura del dashboard
 ```
 
 ## Correr cada servicio por separado
 
 Las dos APIs leen la conexión por variables de entorno: `DB_ENDPOINT`, `DB_PORT`, `DB_NAME`,
-`DB_USERNAME` y `DB_PASSWORD`. Alcanza con un MySQL 8 local:
+`DB_USERNAME` y `DB_PASSWORD`. Con un MySQL 8 local:
 
 ```bash
 docker run -d --name innovatech-mysql -p 3306:3306 \
@@ -109,7 +223,7 @@ docker run -d --name innovatech-mysql -p 3306:3306 \
 docker exec innovatech-mysql mysql -uroot -proot -e "CREATE DATABASE despachos_db;"
 ```
 
-API de ventas (puerto 8080):
+API de ventas:
 
 ```bash
 cd back-Ventas_SpringBoot/Springboot-API-REST
@@ -118,7 +232,7 @@ DB_USERNAME=root DB_PASSWORD=root \
 ./mvnw spring-boot:run
 ```
 
-API de despachos (puerto 8081):
+API de despachos:
 
 ```bash
 cd back-Despachos_SpringBoot/Springboot-API-REST-DESPACHO
@@ -127,7 +241,7 @@ DB_USERNAME=root DB_PASSWORD=root \
 ./mvnw spring-boot:run
 ```
 
-Frontend (puerto 5173):
+Frontend en modo desarrollo:
 
 ```bash
 cd front_despacho
@@ -135,7 +249,7 @@ npm install
 npm run dev
 ```
 
-El proxy de desarrollo de Vite apunta a una API Gateway del proyecto original. Para trabajar contra
+El proxy de Vite apunta por defecto a una API Gateway del proyecto original. Para trabajar contra
 las APIs locales, cambiá el `target` de `/api` en `front_despacho/vite.config.js` a
 `http://localhost:8080` o `http://localhost:8081`.
 
@@ -179,8 +293,8 @@ Los pasos completos están en [`docs/kubernetes.md`](docs/kubernetes.md).
 
 ## Decisiones técnicas
 
-- **Un solo punto de entrada.** El `LoadBalancer` vive en el frontend; las APIs y MySQL son
-  `ClusterIP`. Menos superficie expuesta y un solo costo de balanceador.
+- **Un solo punto de entrada.** En el clúster el `LoadBalancer` vive en el frontend; las APIs y
+  MySQL son `ClusterIP`. Menos superficie expuesta y un solo costo de balanceador.
 - **Sin credenciales en el repositorio.** El secreto real se crea con `kubectl` y está en
   `.gitignore`; lo único versionado es una plantilla con `REPLACE_ME`.
 - **Dos réplicas por aplicación y HPA.** Las APIs y el frontend toleran la caída de un pod y
@@ -190,6 +304,9 @@ Los pasos completos están en [`docs/kubernetes.md`](docs/kubernetes.md).
   solo pasa el JAR y el `dist/` servido por nginx.
 - **Configuración externalizada.** Ninguna URL, usuario ni contraseña está compilada en el código;
   todo entra por variables de entorno.
+- **Compose con la misma topología que el clúster.** Alias de red con los nombres de los Services y
+  healthchecks en las APIs, para que `docker compose up` funcione de una sola vez y no dependa de
+  reiniciar el frontend.
 
 ## Mi aporte
 
@@ -199,6 +316,8 @@ Los pasos completos están en [`docs/kubernetes.md`](docs/kubernetes.md).
   [`k8s/`](k8s) (deployments, services, HPA, MySQL con volumen persistente y plantilla de secreto).
 - **Backend**: inyección por constructor, validación de entradas y configuración de la base
   externalizada en las dos APIs.
+- **Stack local**: dejé el `docker-compose.yml` funcionando de punta a punta, con una base por API,
+  inicialización reproducible de MySQL, alias de red compatibles con nginx y healthchecks.
 - **Integración y limpieza**: unifiqué las ramas `deploy` e `infrastructure/terraform` en `main`,
   eliminé el set de manifiestos duplicado y saqué las credenciales de la base del repositorio.
 - **Documentación**: este README y [`docs/kubernetes.md`](docs/kubernetes.md).
@@ -210,6 +329,8 @@ La infraestructura del clúster con Terraform (VPC, subredes, EKS e IAM) la escr
 - **Credenciales temporales.** El clúster se creó en un laboratorio de AWS. Fuera de ese entorno el
   pipeline no puede autenticarse ni encontrar el clúster; por eso el despliegue no corre en cada
   push a `main`.
+- **Sin demo pública.** Al expirar el laboratorio, el `LoadBalancer` dejó de responder. La captura
+  y el stack local son la forma de ver la aplicación.
 - **Sin TLS ni dominio.** El servicio se publica por HTTP, sin certificado.
 - **MySQL con una réplica.** El volumen persistente protege los datos, pero no hay alta
   disponibilidad de la base ni failover.
