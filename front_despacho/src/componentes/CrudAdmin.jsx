@@ -2,7 +2,6 @@ import Navbar from "./Layouts/Navbar";
 import Footer from "./Layouts/Footer";
 
 import { PruebaCards } from "./CrudAdmin/PruebaCards";
-import Reviews from "./Layouts/Reviews";
 
 export const CrudAdmin = () => {
   return (
@@ -18,7 +17,6 @@ export const CrudAdmin = () => {
           {" "}
           {/* Por si el contenido es muy largo */}
           <PruebaCards />
-          <Reviews />
           <Footer />
         </div>
       </div>
