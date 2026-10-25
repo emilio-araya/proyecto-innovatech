@@ -3,7 +3,6 @@ package com.citt.persistence.services;
 import com.citt.exceptions.VentaNotFoundException;
 import com.citt.persistence.entity.Venta;
 import com.citt.persistence.repository.VentaRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -11,10 +10,13 @@ import java.util.Objects;
 import java.util.Optional;
 
 @Service
-public class VentaServiceImpl implements VentaService{
+public class VentaServiceImpl implements VentaService {
 
-    @Autowired
-    private VentaRepository ventaRepository;
+    private final VentaRepository ventaRepository;
+
+    public VentaServiceImpl(VentaRepository ventaRepository) {
+        this.ventaRepository = ventaRepository;
+    }
 
     @Override
     public List<Venta> findAllVentas() {
@@ -49,7 +51,6 @@ public class VentaServiceImpl implements VentaService{
                 ventaDB.setDespachoGenerado(venta.getDespachoGenerado());
             }
 
-            // Guardar la venta actualizada en la BD
             return ventaRepository.save(ventaDB);
         } else {
             throw new VentaNotFoundException("!No es posible actualizar! No existe venta con ID: " + idVenta);
@@ -61,7 +62,7 @@ public class VentaServiceImpl implements VentaService{
         Optional<Venta> venta = ventaRepository.findById(idVenta);
         if(!venta.isPresent()) {
             throw new VentaNotFoundException("¡No es posible eliminar! No existe venta con el ID: " + idVenta);
-        }else {
+        } else {
             ventaRepository.deleteById(idVenta);
         }
     }

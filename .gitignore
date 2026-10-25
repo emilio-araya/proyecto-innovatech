@@ -1,7 +1,28 @@
-.DS_Store
-.idea/
-.vscode/
-target/
+# Entorno y secretos locales
+.env
+.env.*
+!.env.example
+
+# Node / Vite
 node_modules/
 dist/
-.env
+.vite/
+
+# Java / Maven
+target/
+*.class
+
+# IDEs
+.idea/
+.vscode/
+*.iml
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Secretos locales de Kubernetes (nunca commitear)
+k8s/db-secret.yaml
