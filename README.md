@@ -61,6 +61,9 @@ React Router y reparte las llamadas `/api/*` a cada servicio.
 ├── back-Ventas_SpringBoot/           API de ventas (:8080)
 ├── back-Despachos_SpringBoot/        API de despachos (:8081)
 ├── front_despacho/                   SPA React + nginx con proxies /api
+├── docker-compose.yml                Stack completo local: MySQL, APIs y frontend
+├── docker/mysql-init.sql             Crea ventas_db y despachos_db al primer arranque
+├── .env.example                      Variables de desarrollo
 ├── k8s/                              Manifiestos: deployments, services, HPA, MySQL y PVC
 │   └── examples/                     Plantilla del secreto de base de datos
 ├── terraform/                        VPC, subredes, EKS, IAM y addons
@@ -68,7 +71,31 @@ React Router y reparte las llamadas `/api/*` a cada servicio.
 └── docs/kubernetes.md                Orden de aplicación, secreto y diseño de red
 ```
 
-## Cómo correr en local
+## Stack completo con Docker Compose
+
+La forma más rápida de ver la aplicación: levanta MySQL, las dos APIs y el frontend.
+
+```bash
+docker compose up --build
+```
+
+| Servicio | URL |
+|---|---|
+| Frontend | http://localhost |
+| API de ventas | http://localhost:8080 |
+| API de despachos | http://localhost:8081 |
+
+El compose crea `ventas_db` y `despachos_db` y da de alta el usuario de desarrollo. Los servicios
+tienen alias de red con los mismos nombres que usa `nginx.conf` (`backend-ventas-service` y
+`backend-despachos-service`), así el frontend resuelve las APIs igual que en Kubernetes.
+
+Para bajar el stack y borrar el volumen de MySQL:
+
+```bash
+docker compose down -v
+```
+
+## Correr cada servicio por separado
 
 Las dos APIs leen la conexión por variables de entorno: `DB_ENDPOINT`, `DB_PORT`, `DB_NAME`,
 `DB_USERNAME` y `DB_PASSWORD`. Alcanza con un MySQL 8 local:

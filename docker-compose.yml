@@ -1,80 +1,96 @@
-version: '3.9'
-
 services:
-  # Base de datos MySQL
   mysql-db:
     image: mysql:8.0
-    container_name: mysql-db
+    container_name: innovatech-mysql
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root123}
-      MYSQL_DATABASE: ${DB_NAME:-despacho_db}
-      MYSQL_USER: ${DB_USERNAME:-despacho_user}
-      MYSQL_PASSWORD: ${DB_PASSWORD:-despacho_pass}
+      MYSQL_DATABASE: ventas_db
+      MYSQL_USER: despacho_user
+      MYSQL_PASSWORD: despacho_pass
     ports:
-      - "3306:3306"
+      # 3306 is commonly taken by a local MySQL; the containers still use 3306 internally.
+      - "3307:3306"
     volumes:
       - mysql-data:/var/lib/mysql
+      - ./docker/mysql-init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
     networks:
       - app-network
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
 
-  # Backend - Despachos
   backend-despacho:
     build:
       context: ./back-Despachos_SpringBoot/Springboot-API-REST-DESPACHO
       dockerfile: Dockerfile
-    container_name: backend-despacho
+    container_name: innovatech-backend-despachos
     environment:
-      DB_ENDPOINT: ${DB_ENDPOINT:-mysql-db}
-      DB_PORT: ${DB_PORT:-3306}
-      DB_NAME: ${DB_NAME:-despacho_db}
-      DB_USERNAME: ${DB_USERNAME:-despacho_user}
-      DB_PASSWORD: ${DB_PASSWORD:-despacho_pass}
+      DB_ENDPOINT: mysql-db
+      DB_PORT: 3306
+      DB_NAME: despachos_db
+      DB_USERNAME: despacho_user
+      DB_PASSWORD: despacho_pass
     ports:
       - "8081:8081"
     depends_on:
       mysql-db:
         condition: service_healthy
     networks:
-      - app-network
+      app-network:
+        # nginx.conf proxies to these names, exactly like in Kubernetes.
+        aliases:
+          - backend-despachos-service
+    healthcheck:
+      # Spring Boot is up when its port accepts connections.
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8081"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 20s
     restart: unless-stopped
 
-  # Backend - Ventas
   backend-ventas:
     build:
       context: ./back-Ventas_SpringBoot/Springboot-API-REST
       dockerfile: Dockerfile
-    container_name: backend-ventas
+    container_name: innovatech-backend-ventas
     environment:
-      DB_ENDPOINT: ${DB_ENDPOINT:-mysql-db}
-      DB_PORT: ${DB_PORT:-3306}
-      DB_NAME: ${DB_NAME:-despacho_db}
-      DB_USERNAME: ${DB_USERNAME:-despacho_user}
-      DB_PASSWORD: ${DB_PASSWORD:-despacho_pass}
+      DB_ENDPOINT: mysql-db
+      DB_PORT: 3306
+      DB_NAME: ventas_db
+      DB_USERNAME: despacho_user
+      DB_PASSWORD: despacho_pass
     ports:
       - "8080:8080"
     depends_on:
       mysql-db:
         condition: service_healthy
     networks:
-      - app-network
+      app-network:
+        aliases:
+          - backend-ventas-service
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 20s
     restart: unless-stopped
 
-  # Frontend - React
   frontend:
     build:
       context: ./front_despacho
       dockerfile: Dockerfile
-    container_name: frontend
+    container_name: innovatech-frontend
     ports:
       - "80:80"
     depends_on:
-      - backend-despacho
-      - backend-ventas
+      backend-despacho:
+        condition: service_healthy
+      backend-ventas:
+        condition: service_healthy
     networks:
       - app-network
     restart: unless-stopped
